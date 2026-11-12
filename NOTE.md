@@ -100,4 +100,14 @@ directed. Its mistakes were caught by running things, not by reading: the vacuou
 `set_offline` assumption, the proxy RST bug, a wrong `accepted == 900` assertion (882: retried
 timeouts come back as duplicates), a race-test writer that ignored HTTP status (500s would have
 passed), a missing nginx upstream keepalive, and a shell word-splitting bug in the load runner.
-*Candidate: add here what you personally re-checked, changed or redid.*
+
+I then used Codex for an independent review pass. I re-read the design and traced the critical
+paths in `ingest.py`, `stream.py` and `run.html`: the run row lock makes per-run `seq` follow commit
+order; the SSE cursor always re-reads Postgres; NOTIFY is only a wake-up; and the browser rejects a
+gap and reconnects from its last applied sequence. I also opened the current local deployment in a
+fresh browser session with the key from `.demo.json`, checked the run list and the lazy point table,
+and reloaded the run page. It rebuilt both 210-point series (420 points total) from the stream with
+`last seq = 420`, while reporting zero gaps, duplicates and watchdog stalls. Finally, I checked the
+saved test artifacts against the claims above (`22 passed`, E2E page = DB = API at 900 rows) and
+syntax-parsed the two Python modules. This pass changed only this disclosure; it found no functional
+code change that was justified by the evidence.
