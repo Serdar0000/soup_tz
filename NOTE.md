@@ -1,113 +1,86 @@
 # Note: soup experiment tracker
 
-Design: [DESIGN.md](DESIGN.md). Raw output: [results/](results/). The core idea in one line:
-**Postgres is the only source of truth and the live stream is just a cursor over it.** Each
-run has a gap-free `seq` that is assigned under a row lock, so commit order equals seq order;
-the client resumes from `Last-Event-ID`; NOTIFY only wakes subscribers up, and a 2 s poll covers a lost NOTIFY.
+Design: [DESIGN.md](DESIGN.md). Raw output: [results/](results/). Core invariant:
+**Postgres is the source of truth; SSE is a resumable cursor over it.** A run-row
+lock assigns gap-free `seq` values in commit order, while NOTIFY only wakes
+readers and a 2-second poll covers missed notifications.
 
-## 1. Consistency: the E2E test (`tests/test_e2e_consistency.py`)
+## 1. Correctness and isolation
 
-Real Chromium against the real stack. 900 points (3 metrics × 300 steps) are shuffled into
-1–8-point batches and sent in random order by 4 concurrent senders. 30% are re-sent later, 10%
-are held back to the end, 5 are re-sent with a different value, and 10% of requests time out on
-the client side after the server may already have applied them (the client retries). Four
-disruptions land **mid-stream** (asserted):
+The Chromium E2E test sent 900 shuffled points through four concurrent writers,
+including retries, client timeouts, delayed batches, and five conflicting
+re-sends. Four asserted mid-stream disruptions covered forced stream closure, a
+3-second network cut, page reload, and a silent TCP blackhole. The page froze at
+seq 431 while the DB advanced 447→546, then caught up in 0.01 s. The watchdog
+detected the blackhole after 11.6 s. Final page, API, and DB matched exactly:
+900/900 rows, no gaps; conflicts displayed the first stored value.
 
-| disruption | what the page saw (final run) |
+Eleven isolation tests show project B cannot list, read, write, or subscribe to
+A's runs using headers or cookies. Foreign and missing IDs return identical
+404s; cache warming does not leak access; streams do not cross projects; raw
+keys appeared in 0 of 1727 log lines. Median foreign and missing lookup latency
+was the same (0.730 ms, n=300). A cookie authorizes reads only, limiting CSRF.
+
+Six mutation checks were all caught: cache without project ID, unscoped run
+list, unscoped stream, stream ignoring key rotation, global sequence, and a
+mid-batch commit. The global-sequence mutation silently lost 137, 57, and 71
+rows in three 2400-row runs, demonstrating why the run lock matters.
+
+Limits: final-state E2E cannot exclude every transient UI error or untested
+interleaving; nginx was tested, not arbitrary buffering proxies/CDNs. Isolation
+depends on application query scoping rather than PostgreSQL RLS, and there is no
+per-project rate limit. Operators can see run IDs in logs.
+
+## 2. Silent failures
+
+| risk | defence and observed result |
 |---|---|
-| server closes every stream | reconnected, resumed from Last-Event-ID |
-| browser network cut 3 s (TCP RST + refused) | frozen at seq 431 while the DB went 447→546; caught up 0.01 s after restore |
-| full page reload | rebuilt from seq 0 |
-| silent network death (bytes vanish, no RST/FIN) | watchdog noticed after 11.6 s, reconnected, caught up |
+| reconnect loss | DB cursor; 8 writers and 72 reader drops delivered 2400/2400 in order |
+| duplicates/conflicts | `(run,key,step)` identity; stored once, first value kept |
+| slow client | no subscriber queue; 10,000/10,000 delivered, unrelated writes p99 5 ms |
+| partial batch | validation + one transaction; injected fault and `kill -9` produced no partial or acknowledged-but-missing batch (78,718 rows checked) |
+| key rotation | no auth cache; REST rejected immediately, stream closed after 1.5 s |
+| lost NOTIFY | polling and listener reconnect; delivery resumed after 0.4 s |
+| silent TCP death | real ping + 12 s watchdog; a real bug found and fixed |
+| DB outage | 503 + `Retry-After`; a real 500-response bug found and fixed |
+| long-run UI cost | redraw changed metrics, lazy table, downsampled chart; 36k-point tick fell from 252 ms to 6 ms |
 
-Result: page = DB = API, 900/900 rows compared exactly as (key, step, value, seq). Visible
-text matches. 0 gaps. Conflicting re-sends show the first, stored value. **Does not catch:** SSE-buffering
-proxies/CDNs other than the nginx I tested; transient wrong states mid-stream (only the final state
-is compared); browser tab freezing / mobile background; interleavings the random schedule didn't hit
-(the targeted race test and the mutation checks cover the important one); multiple browsers
-on one run. The E2E runs on one app process; the full suite also passes on 2 replicas behind nginx.
+Remaining windows: a stream may survive revocation for up to two seconds; a
+silently dead page may look current for up to 12 seconds. The client's
+`accepted` total is unreliable after timed-out retries; server `last_seq` is
+authoritative. Production monitoring should compare `last_seq` with row counts
+and collect client-reported gaps.
 
-## 2. Isolation (`tests/test_isolation.py`, 11 tests)
+## 3. Capacity verdict: SHIP with two replicas and batching
 
-B cannot list A's runs, read run/metrics, write (DB checked: unchanged), or open A's SSE
-stream, whether with the header or with the browser cookie. A cookie never authorizes writes (CSRF).
-Foreign, missing and malformed ids get byte-identical 404s. After A warms the run cache, B still
-gets 404. `Cache-Control: no-store` and `Vary: Authorization, Cookie` are set. A's stream never carries
-B's events. IDs are UUIDv4. 500/422 bodies echo neither internals nor submitted values. The 31 raw keys issued
-in tests were grepped across 1727 log lines: **0 hits**. Timing: foreign 0.730 ms vs missing
-0.730 ms median (n=300); it's the same scoped query.
-**Could still leak:** run ids are in logs (operators see all projects); there is no *performance*
-isolation (no per-project rate limit, so A can slow B, and B's latency becomes a side channel on A);
-isolation depends on every query carrying `project_id` with nothing in the DB enforcing it
-(Postgres RLS would be defense-in-depth); the cookie holds the raw key (HttpOnly, SameSite=Strict).
+| setup | achieved | loss/errors | ingest latency |
+|---|---:|---:|---:|
+| 1 process, 50 runs, batches of 10 | 500 points/s | 0 | p50 3.5 / p99 42 ms |
+| 1 process, 500 single-point requests/s | 500 req/s | 0 | p50 7.5 / p99 65 ms |
+| 2 replicas + nginx, 500 req/s | 500 req/s | 0 | client p99 56 ms |
+| 1 process, 200 runs, 4× batching | 1969/2000 points/s | 0 | p50 4.1 / p99 82 ms |
 
-**Do the tests bite?** `scripts/mutation_check.sh` injects 6 known bugs (cache keyed by run id
-only, unscoped run list, unscoped stream, streams ignore rotation, global sequence without the
-run lock, commit inside a batch): **6/6 caught**. With the global sequence, 2400 rows were in the DB
-and the reader silently missed 137, 57 and 71 of them in three runs. No error anywhere.
-
-## 3. Silent failures
-
-| failure | defence | how checked | result |
-|---|---|---|---|
-| lost on reconnect | DB cursor, gap-free seq, client gap check | 8 writers + retry storms, reader dropped 72×; E2E ×4 | 2400/2400 in order |
-| duplicates | identity (run,key,step) under the run lock | same batch ×10 concurrently; E2E | stored once |
-| slow-client overflow | no queue: each subscriber reads the DB at its own pace | 10 k backlog read slowly, writes elsewhere | 10 000/10 000; other writes p99 5 ms |
-| partial writes | one transaction, validate first | invalid point; fault after INSERT before COMMIT; **`kill -9` of a replica and of Postgres under 8 writers** | 0 partial of ~2900 batches, 0 acked-but-missing (78 718 rows), reader exact |
-| key alive after rotation | no auth cache; streams re-check ≤2 s | REST, cookie, open stream, grace | REST 401 at once; stream `revoked` after 1.5 s |
-| lost NOTIFY | 2 s poll + listener reconnect | `pg_terminate_backend` on the listener | delivered after 0.4 s |
-| **dead TCP looks alive** | ping event + 12 s watchdog | blackhole proxy | **real bug, fixed** |
-| **DB outage returned 500** | now 503 + `Retry-After` | crash test | **real bug, fixed**: many SDKs don't retry a 500, so a DB blip would become client-side drops |
-| **UI cost grows with run length** | redraw only changed metrics; table only when open; downsampled chart | 36 k points | **real bug: 252 ms per 200 ms tick → 6 ms** |
-
-Remaining windows: a stream can outlive a rotated key by ≤2 s. A silently dead client shows stale
-data for ≤12 s, and the server holds that subscriber until TCP gives up. The client's own `accepted` sum is
-wrong after timeouts (retries come back as duplicates); the server's `last_seq` is the truth.
-
-## 4. Verdict for 50 runs × 10 events/s: **SHIP**, on 2 replicas, with client batching
-
-| setup / mode | achieved | errors / lost | server ingest p50/p99 | CPU |
-|---|---|---|---|---|
-| 1 process, 1 POST/s × 10 pts per run | 500 pts/s | 0 / 0 (50/50 streams exact) | 3.5 / 42 ms | app ~12% |
-| 1 process, 10 POST/s × 1 pt (500 req/s) | 500 req/s | 0 / 0 | 7.5 / 65 ms | app 45–63%, db 24–36% |
-| 2 replicas + nginx, 500 req/s | 500 req/s | 0 / 0 | client p99 56 ms | app 31–39% each, **db 52–63%** |
-| 1 process, 4× batched (200 runs) | 1969/2000 pts/s | 0 / 0 (200/200) | 4.1 / 82 ms | app ~21% |
-
-Correctness held everywhere. Client-measured latency (p50 ~60 ms) is mostly the load generator: one
-generator couldn't reach 500 req/s, two could. **Change first:** deploy the tested 2-replica setup
-(`docker-compose.replicas.yml`): one process has <2× headroom unbatched and is a single point of
-failure (survivable, as tested, but every stream reconnects at once). Then make clients batch:
-with replicas, **Postgres becomes the bottleneck** at 500 commits/s, and 10 points per commit cuts it 10×.
-Then per-project rate limits and RLS.
-
-## 5. What surprised me, what still concerns me
-
-The biggest surprise was how often *the test* was wrong rather than the system, while still looking
-green. The first E2E ran all four "mid-stream" disruptions after the last batch had been sent; now it asserts
-their timing. Playwright's `set_offline(true)` doesn't touch an open EventSource, so that check would
-have passed vacuously forever. My TCP proxy's `close()` on a socket another thread was blocked on in
-`recv()` sent nothing. That accident exposed a real product bug: a silently dead connection kept the
-page "live" forever, because SSE comments are invisible to JS. What still concerns me: Postgres takes
-a global lock for NOTIFY at commit, a write ceiling I haven't measured; the per-run lock serializes
-big concurrent batches to one run; and I can only show the absence of failures I thought of.
-Production needs a server-side check (compare `last_seq` and `count(*)` per run) plus client-reported
-gaps in monitoring to *know* an event was lost.
+Deploy the tested two-replica setup first: one process has less than 2×
+headroom and reconnects every stream if it fails. Then batch client points;
+at 500 commits/s PostgreSQL used 52–63% CPU, so fewer commits matter more than
+more app replicas. Add per-project rate limits and RLS next. Unmeasured risks
+include PostgreSQL's commit-time NOTIFY lock and large concurrent batches to one
+run, which the per-run lock must serialize.
 
 ## AI tools
 
-The code, tests and this note were produced in a Claude Code session (Claude Opus) that I
-directed. Its mistakes were caught by running things, not by reading: the vacuous E2E schedule, the
-`set_offline` assumption, the proxy RST bug, a wrong `accepted == 900` assertion (882: retried
-timeouts come back as duplicates), a race-test writer that ignored HTTP status (500s would have
-passed), a missing nginx upstream keepalive, and a shell word-splitting bug in the load runner.
+I directed a Claude Code (Claude Opus) session that produced the implementation,
+tests, and first report. Running the system exposed and corrected several
+plausible-looking AI mistakes: disruptions scheduled after ingestion, an
+offline simulation that did not affect EventSource, a faulty proxy reset, an
+incorrect accepted-count assertion, a writer that ignored HTTP status, missing
+nginx keepalive, and shell word splitting.
 
-I then used Codex for an independent review pass. I re-read the design and traced the critical
-paths in `ingest.py`, `stream.py` and `run.html`: the run row lock makes per-run `seq` follow commit
-order; the SSE cursor always re-reads Postgres; NOTIFY is only a wake-up; and the browser rejects a
-gap and reconnects from its last applied sequence. I also opened the current local deployment in a
-fresh browser session with the key from `.demo.json`, checked the run list and the lazy point table,
-and reloaded the run page. It rebuilt both 210-point series (420 points total) from the stream with
-`last seq = 420`, while reporting zero gaps, duplicates and watchdog stalls. Finally, I checked the
-saved test artifacts against the claims above (`22 passed`, E2E page = DB = API at 900 rows) and
-syntax-parsed the two Python modules. This pass changed only this disclosure; it found no functional
-code change that was justified by the evidence.
+I then used Codex for an independent review. I traced the ordering, recovery,
+and browser paths in `ingest.py`, `stream.py`, and `run.html`; opened the local
+deployment with `.demo.json`; inspected the run list and lazy table; and
+reloaded the page. Both 210-point series rebuilt from SSE (420 total,
+`last_seq=420`) with zero reported gaps, duplicates, or stalls. I also checked
+the saved artifacts (`22 passed`; E2E page = DB = API at 900 rows) and parsed
+both Python modules. That pass changed this disclosure only; the evidence did
+not justify a functional code change.
