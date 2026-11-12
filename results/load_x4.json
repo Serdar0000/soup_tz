@@ -1,0 +1,32 @@
+{
+  "config": {
+    "runs": 200,
+    "rate": 10.0,
+    "batch": 10,
+    "duration": 45.0,
+    "out": "/results/load_x4.json"
+  },
+  "elapsed_s": 45.4,
+  "points_acked": 89460,
+  "points_stored": 89460,
+  "achieved_points_per_s": 1968.9,
+  "target_points_per_s": 2000.0,
+  "requests": 8946,
+  "errors": {},
+  "writer_fell_behind": 1529,
+  "ingest_ms": {
+    "p50": 374.1,
+    "p95": 1695.4,
+    "p99": 4064.5,
+    "max": 8272.3
+  },
+  "e2e_delivery_ms": {
+    "p50": 364.3,
+    "p95": 1655.8,
+    "p99": 4040.1,
+    "max": 8243.6
+  },
+  "subscribers_complete": 200,
+  "subscribers_incomplete": [],
+  "subscriber_reconnects": 0
+}

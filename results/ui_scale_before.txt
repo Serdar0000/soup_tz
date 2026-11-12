@@ -1,0 +1,2 @@
+UI_SCALE points=3000 initial_load_s=0.3 render_tick_ms=39 new_point_visible_s=0.15
+UI_SCALE points=36000 initial_load_s=1.1 render_tick_ms=252 new_point_visible_s=0.37

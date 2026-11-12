@@ -1,0 +1,23 @@
+16:45:17 SIGKILL app-1 (acked batches so far: 781)
+16:45:21 app-1 restarted (acked: 1190)
+16:45:25 SIGKILL postgres (acked: 1886)
+16:45:29 postgres restarted
+16:45:29 first batch acked 0.2s after postgres start
+{
+  "batches_attempted": 2877,
+  "batches_acked": 2877,
+  "rows": 78718,
+  "last_seq": 78718,
+  "partial_batches": 0,
+  "acked_but_missing": 0,
+  "seq_gap_free": true,
+  "reader_events": 78718,
+  "reader_exact": true,
+  "reader_unique_exact": true,
+  "client_errors_seen": {
+    "reader_RemoteProtocolError": 2,
+    "ReadTimeout": 4,
+    "http_503": 126
+  }
+}
+CRASH TEST: PASS

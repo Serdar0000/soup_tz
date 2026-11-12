@@ -1,0 +1,31 @@
+ Container soup_tz-db-1 Running 
+ Container soup_tz-app-1 Running 
+ Container soup_tz-db-1 Waiting 
+ Container soup_tz-db-1 Healthy 
+ Container soup_tz-app-1 Waiting 
+ Container soup_tz-app-1 Healthy 
+ Container soup_tz-tests-run-d88dacb6e710 Creating 
+ Container soup_tz-tests-run-d88dacb6e710 Created 
+F
+=================================== FAILURES ===================================
+__________________ test_cache_does_not_leak_between_projects ___________________
+
+make_project = <function make_project.<locals>._make at 0xffff80dd8f40>
+
+    def test_cache_does_not_leak_between_projects(make_project):
+        """A warms the run cache; B's identical request right after must still be a 404."""
+        a, b = make_project("A"), make_project("B")
+        run_a = a.new_run("secret-name")
+        for _ in range(3):
+            assert a.http.get(f"{BASE}/runs/{run_a}", headers=a.h()).status_code == 200
+        r = b.http.get(f"{BASE}/runs/{run_a}", headers=b.h())
+>       assert r.status_code == 404 and b"secret-name" not in r.content
+E       assert (200 == 404)
+E        +  where 200 = <Response [200 OK]>.status_code
+
+test_isolation.py:80: AssertionError
+=========================== short test summary info ============================
+FAILED test_isolation.py::test_cache_does_not_leak_between_projects - assert ...
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed in 0.06s
+

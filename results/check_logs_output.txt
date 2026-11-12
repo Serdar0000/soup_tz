@@ -1,0 +1,3 @@
+log lines scanned: 1727, raw keys checked: 31, lines containing a raw key: 0
+distinct key prefixes in logs: 30
+log lines with a run id in the path: 1389

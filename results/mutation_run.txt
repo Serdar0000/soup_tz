@@ -1,0 +1,7 @@
+caught    cache_key_without_project  <- E       assert (200 == 404)
+caught    run_list_unscoped  <- E       AssertionError: assert ({'01837305-e4...5e3c512', ...} == {'0ebad015-14...395c64fdc2be'}
+caught    stream_unscoped  <- E       assert (200 == 404)
+caught    stream_ignores_rotation  <- E       assert (not True)
+caught    global_seq_commit_order_race  <- E       AssertionError: gap or duplicate in delivered seqs
+caught    partial_write  <- E       AssertionError: assert [(1, 'loss', ... 5, 2.5), ...] == []
+restored

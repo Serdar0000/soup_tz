@@ -1,0 +1,60 @@
+{
+  "seed": 1794483963,
+  "run_id": "40018f1b-55aa-4f0f-b08e-7e348f31bb4a",
+  "client": {
+    "requests": 256,
+    "client_timeouts": 6,
+    "accepted": 873,
+    "duplicates": 273,
+    "conflicts": 5
+  },
+  "events": {
+    "server_drop_reconnected": true,
+    "progress_at_disruptions": [
+      69,
+      104,
+      139,
+      185
+    ],
+    "network_cut": {
+      "page_seq_at_cut": 431,
+      "page_seq_at_restore": 431,
+      "db_seq_at_cut": 447,
+      "db_seq_at_restore": 546,
+      "conn_state_during": "reconnecting",
+      "catchup_s": 0.01
+    },
+    "blackhole": {
+      "page_seq_at_cut": 708,
+      "detected_after_s": 11.6,
+      "db_seq_at_detect": 817
+    }
+  },
+  "log": [
+    "11:46:03 browser console: Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "11:46:03 seed=1794483963 points=900 batches_in_plan=231 late_batches=19 conflicts=5",
+    "11:46:12 disruption 1: server dropped streams at 69/231; page reconnected",
+    "11:46:16 browser console: Failed to load resource: net::ERR_CONNECTION_RESET",
+    "11:46:19 browser console: Failed to load resource: net::ERR_CONNECTION_RESET",
+    "11:46:19 browser console: Failed to load resource: net::ERR_CONNECTION_RESET",
+    "11:46:19 browser console: Failed to load resource: net::ERR_SOCKET_NOT_CONNECTED",
+    "11:46:20 disruption 2: network cut 3s at 136/231: {'page_seq_at_cut': 431, 'page_seq_at_restore': 431, 'db_seq_at_cut': 447, 'db_seq_at_restore': 546, 'conn_state_during': 'reconnecting', 'catchup_s': 0.01}",
+    "11:46:20 disruption 3: page reloaded at 140/231",
+    "11:46:37 disruption 4: blackhole at 185/231: {'page_seq_at_cut': 708, 'detected_after_s': 11.6, 'db_seq_at_detect': 817}",
+    "11:46:37 main plan sent; sending late batches",
+    "11:46:39 page caught up to seq 900 in 0.51s after last write"
+  ],
+  "db_rows": 900,
+  "page_rows": 900,
+  "api_rows": 900,
+  "expected_rows": 900,
+  "db_last_seq": 900,
+  "page_last_seq": 900,
+  "page_gaps": 0,
+  "page_dupes_ignored": 0,
+  "page_reconnects_after_reload": 1,
+  "only_in_db": [],
+  "only_on_page": [],
+  "visible_text_mismatches": [],
+  "conflicts_page_shows_first_value": true
+}

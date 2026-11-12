@@ -1,0 +1,32 @@
+{
+  "config": {
+    "runs": 25,
+    "rate": 10.0,
+    "batch": 1,
+    "duration": 45.0,
+    "out": "/results/load_replicas_keepalive_split2.json"
+  },
+  "elapsed_s": 45.0,
+  "points_acked": 11250,
+  "points_stored": 11250,
+  "achieved_points_per_s": 249.9,
+  "target_points_per_s": 250.0,
+  "requests": 11250,
+  "errors": {},
+  "writer_fell_behind": 0,
+  "ingest_ms": {
+    "p50": 23.6,
+    "p95": 42.8,
+    "p99": 56.5,
+    "max": 108.8
+  },
+  "e2e_delivery_ms": {
+    "p50": 24.2,
+    "p95": 43.9,
+    "p99": 58.2,
+    "max": 110.0
+  },
+  "subscribers_complete": 25,
+  "subscribers_incomplete": [],
+  "subscriber_reconnects": 0
+}

@@ -1,0 +1,48 @@
+ Container soup_tz-lb-1 Running 
+ Container soup_tz-db-1 Running 
+ Container soup_tz-app-1 Running 
+ Container soup_tz-app-2 Running 
+ Container soup_tz-db-1 Waiting 
+ Container soup_tz-db-1 Healthy 
+ Container soup_tz-app-1 Waiting 
+ Container soup_tz-app-2 Waiting 
+ Container soup_tz-app-1 Healthy 
+ Container soup_tz-app-2 Healthy 
+ Container soup_tz-app-1 Waiting 
+ Container soup_tz-app-2 Waiting 
+ Container soup_tz-app-1 Healthy 
+ Container soup_tz-app-2 Healthy 
+ Container soup_tz-tests-run-04f8f49ba6bc Creating 
+ Container soup_tz-tests-run-04f8f49ba6bc Created 
+{
+  "config": {
+    "runs": 25,
+    "rate": 10.0,
+    "batch": 1,
+    "duration": 45.0,
+    "out": "/results/load_replicas_batch1_split1.json"
+  },
+  "elapsed_s": 45.0,
+  "points_acked": 11250,
+  "points_stored": 11250,
+  "achieved_points_per_s": 249.9,
+  "target_points_per_s": 250.0,
+  "requests": 11250,
+  "errors": {},
+  "writer_fell_behind": 0,
+  "ingest_ms": {
+    "p50": 22.5,
+    "p95": 42.0,
+    "p99": 50.2,
+    "max": 346.0
+  },
+  "e2e_delivery_ms": {
+    "p50": 23.4,
+    "p95": 42.8,
+    "p99": 52.6,
+    "max": 352.3
+  },
+  "subscribers_complete": 25,
+  "subscribers_incomplete": [],
+  "subscriber_reconnects": 0
+}

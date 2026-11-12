@@ -1,0 +1,52 @@
+ Container soup_tz-db-1 Running 
+ Container soup_tz-app-1 Running 
+ Container soup_tz-db-1 Waiting 
+ Container soup_tz-db-1 Healthy 
+ Container soup_tz-app-1 Waiting 
+ Container soup_tz-app-1 Healthy 
+ Container soup_tz-tests-run-177deeea8b2b Creating 
+ Container soup_tz-tests-run-177deeea8b2b Created 
+F
+=================================== FAILURES ===================================
+__________________ test_rotated_key_stops_working_everywhere ___________________
+
+make_project = <function make_project.<locals>._make at 0xffff8ae52200>
+
+    def test_rotated_key_stops_working_everywhere(make_project):
+        a = make_project()
+        run = a.new_run()
+        old = a.key
+        browser = httpx.Client(base_url=BASE)
+        assert browser.post("/session", json={"api_key": old}).status_code == 200
+    
+        reader = SSEReader(f"{BASE}/runs/{run}/stream", a.h(old))
+        t = threading.Thread(target=reader.read_once, kwargs={"timeout": 15})
+        t.start()
+        time.sleep(0.5)
+    
+        new = a.rotate()
+        t_rot = time.monotonic()
+        # REST: immediately
+        assert a.http.get(f"{BASE}/runs", headers=a.h(old)).status_code == 401
+        assert a.post(run, pts("x", [1]), headers=a.h(old)).status_code == 401
+        assert a.http.get(f"{BASE}/runs", headers=a.h(new)).status_code == 200
+        # browser cookie holding the old key
+        assert browser.get("/runs").status_code == 401
+        # an already-open stream: closed by the server within one poll tick
+        t.join(timeout=10)
+        closed_after = time.monotonic() - t_rot
+        print(f"\nROTATION: open stream closed {closed_after:.2f}s after rotation, control={reader.control}")
+>       assert not t.is_alive() and reader.control == ["revoked"]
+E       assert (not True)
+E        +  where True = is_alive()
+E        +    where is_alive = <Thread(Thread-1 (read_once), started 281473010385280)>.is_alive
+
+test_silent_failures.py:192: AssertionError
+----------------------------- Captured stdout call -----------------------------
+
+ROTATION: open stream closed 10.01s after rotation, control=[]
+=========================== short test summary info ============================
+FAILED test_silent_failures.py::test_rotated_key_stops_working_everywhere - a...
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed in 10.60s
+

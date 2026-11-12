@@ -1,0 +1,32 @@
+ Container soup_tz-db-1 Running 
+ Container soup_tz-app-1 Running 
+ Container soup_tz-db-1 Waiting 
+ Container soup_tz-db-1 Healthy 
+ Container soup_tz-app-1 Waiting 
+ Container soup_tz-app-1 Healthy 
+ Container soup_tz-tests-run-1829b3e86394 Creating 
+ Container soup_tz-tests-run-1829b3e86394 Created 
+F
+=================================== FAILURES ===================================
+______ test_failure_mid_write_rolls_back_everything_and_leaves_no_seq_gap ______
+
+make_project = <function make_project.<locals>._make at 0xffff94136200>
+db = <psycopg.Connection [IDLE] (host=db database=soup) at 0xffff940af290>
+
+    def test_failure_mid_write_rolls_back_everything_and_leaves_no_seq_gap(make_project, db):
+        a = make_project()
+        run = a.new_run()
+        r = a.post(run, pts("loss", range(50)), headers={"x-test-fault": "after_insert"})
+        assert r.status_code == 500
+>       assert db_points(db, run) == []
+E       AssertionError: assert [(1, 'loss', ... 5, 2.5), ...] == []
+E         
+E         Left contains 50 more items, first extra item: (1, 'loss', 0, 0.0)
+E         Use -v to get more diff
+
+test_silent_failures.py:55: AssertionError
+=========================== short test summary info ============================
+FAILED test_silent_failures.py::test_failure_mid_write_rolls_back_everything_and_leaves_no_seq_gap
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed in 0.07s
+

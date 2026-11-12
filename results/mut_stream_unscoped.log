@@ -1,0 +1,31 @@
+ Container soup_tz-db-1 Running 
+ Container soup_tz-app-1 Running 
+ Container soup_tz-db-1 Waiting 
+ Container soup_tz-db-1 Healthy 
+ Container soup_tz-app-1 Waiting 
+ Container soup_tz-app-1 Healthy 
+ Container soup_tz-tests-run-725ce0b0337c Creating 
+ Container soup_tz-tests-run-725ce0b0337c Created 
+F
+=================================== FAILURES ===================================
+___________ test_cannot_subscribe_to_foreign_stream_header_or_cookie ___________
+
+make_project = <function make_project.<locals>._make at 0xffffa1df8f40>
+
+    def test_cannot_subscribe_to_foreign_stream_header_or_cookie(make_project):
+        a, b = make_project("A"), make_project("B")
+        run_a = a.new_run()
+        a.post(run_a, [{"key": "loss", "step": 1, "value": 1.0}])
+        # header auth
+        rd = SSEReader(f"{BASE}/runs/{run_a}/stream", b.h())
+        rd.read_once(timeout=3)
+>       assert rd.status == 404 and rd.events == []
+E       assert (200 == 404)
+E        +  where 200 = <conftest.SSEReader object at 0xffffa1d57da0>.status
+
+test_isolation.py:60: AssertionError
+=========================== short test summary info ============================
+FAILED test_isolation.py::test_cannot_subscribe_to_foreign_stream_header_or_cookie
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed in 3.10s
+

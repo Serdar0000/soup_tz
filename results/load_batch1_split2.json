@@ -1,0 +1,32 @@
+{
+  "config": {
+    "runs": 25,
+    "rate": 10.0,
+    "batch": 1,
+    "duration": 45.0,
+    "out": "/results/load_batch1_split2.json"
+  },
+  "elapsed_s": 45.0,
+  "points_acked": 11250,
+  "points_stored": 11250,
+  "achieved_points_per_s": 249.9,
+  "target_points_per_s": 250.0,
+  "requests": 11250,
+  "errors": {},
+  "writer_fell_behind": 0,
+  "ingest_ms": {
+    "p50": 30.0,
+    "p95": 61.2,
+    "p99": 113.1,
+    "max": 477.2
+  },
+  "e2e_delivery_ms": {
+    "p50": 32.7,
+    "p95": 68.1,
+    "p99": 143.0,
+    "max": 662.0
+  },
+  "subscribers_complete": 25,
+  "subscribers_incomplete": [],
+  "subscriber_reconnects": 0
+}

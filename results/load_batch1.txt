@@ -1,0 +1,40 @@
+ Container soup_tz-app-1 Running 
+ Container soup_tz-db-1 Running 
+ Container soup_tz-db-1 Waiting 
+ Container soup_tz-db-1 Healthy 
+ Container soup_tz-app-1 Waiting 
+ Container soup_tz-app-1 Healthy 
+ Container soup_tz-tests-run-3a20ead3065c Creating 
+ Container soup_tz-tests-run-3a20ead3065c Created 
+{
+  "config": {
+    "runs": 50,
+    "rate": 10.0,
+    "batch": 1,
+    "duration": 60.0,
+    "out": "/results/load_batch1.json"
+  },
+  "elapsed_s": 60.1,
+  "points_acked": 24596,
+  "points_stored": 24596,
+  "achieved_points_per_s": 409.5,
+  "target_points_per_s": 500.0,
+  "requests": 24596,
+  "errors": {},
+  "writer_fell_behind": 24011,
+  "ingest_ms": {
+    "p50": 75.0,
+    "p95": 369.0,
+    "p99": 608.3,
+    "max": 1521.3
+  },
+  "e2e_delivery_ms": {
+    "p50": 69.1,
+    "p95": 361.1,
+    "p99": 599.7,
+    "max": 1512.0
+  },
+  "subscribers_complete": 50,
+  "subscribers_incomplete": [],
+  "subscriber_reconnects": 0
+}

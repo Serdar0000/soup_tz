@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soup run</title>
+<style>
+  :root { --bg:#fafaf9; --fg:#1c1917; --muted:#78716c; --line:#e7e5e4; --accent:#0f766e; --warn:#b45309; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#1c1917; --fg:#f5f5f4; --muted:#a8a29e; --line:#44403c; --accent:#5eead4; --warn:#fbbf24; } }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui, sans-serif; }
+  main { max-width:1000px; margin:0 auto; padding:24px 16px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  a { color:var(--accent); }
+  .muted { color:var(--muted); }
+  #status { display:flex; flex-wrap:wrap; gap:16px; font-size:13px; padding:10px 0; border-bottom:1px solid var(--line); margin-bottom:16px; }
+  #status b { font-variant-numeric:tabular-nums; }
+  .state-live { color:var(--accent); } .state-reconnecting, .state-error { color:var(--warn); }
+  .metric { border:1px solid var(--line); border-radius:6px; padding:12px; margin-bottom:12px; }
+  .metric h2 { font-size:15px; margin:0 0 6px; font-family:ui-monospace, monospace; }
+  .summary { font-size:13px; display:flex; flex-wrap:wrap; gap:14px; font-variant-numeric:tabular-nums; }
+  svg { width:100%; height:120px; display:block; margin:8px 0; }
+  svg polyline { fill:none; stroke:var(--accent); stroke-width:1.5; vector-effect:non-scaling-stroke; }
+  table { border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; }
+  td, th { padding:2px 10px 2px 0; text-align:right; }
+  .wrap { max-height:240px; overflow:auto; }
+</style>
+</head>
+<body>
+<main>
+  <p><a href="/">← all runs</a></p>
+  <h1 id="title">Run</h1>
+  <div class="muted" id="run-id"></div>
+  <div id="status">
+    <span>connection: <b id="conn" class="state-connecting">connecting</b></span>
+    <span>last seq: <b id="last-seq">0</b></span>
+    <span>points: <b id="n-points">0</b></span>
+    <span>reconnects: <b id="reconnects">0</b></span>
+    <span>gaps detected: <b id="gaps">0</b></span>
+    <span>duplicates ignored: <b id="dupes">0</b></span>
+    <span>stalls detected: <b id="watchdog">0</b></span>
+  </div>
+  <div id="metrics"></div>
+</main>
+<script>
+const runId = location.pathname.split('/').pop();
+const $ = (s) => document.querySelector(s);
+// state is built ONLY from stream events, in seq order. lastSeq is the cursor.
+const state = { lastSeq: 0, byKey: new Map(), reconnects: 0, gaps: 0, dupes: 0, conn: 'connecting', opened: 0, watchdog: 0, lastActivity: Date.now() };
+window.__soup = state;
+let es, dirty = false;
+const dirtyKeys = new Set();  // only metrics that changed get re-rendered
+
+function setConn(s) { state.conn = s; const el = $('#conn'); el.textContent = s; el.className = 'state-' + s; }
+
+function connect() {
+  if (es) es.close();
+  es = new EventSource(`/runs/${runId}/stream?after=${state.lastSeq}`);
+  state.lastActivity = Date.now();
+  es.onopen = () => { state.lastActivity = Date.now(); state.opened++; if (state.opened > 1) state.reconnects++; setConn('live'); dirty = true; };
+  es.addEventListener('ping', () => { state.lastActivity = Date.now(); });
+  es.addEventListener('metric', (e) => {
+    state.lastActivity = Date.now();
+    const seq = Number(e.lastEventId);
+    if (seq <= state.lastSeq) { state.dupes++; dirty = true; return; }
+    if (seq !== state.lastSeq + 1) {
+      // server guarantees gap-free seq; a gap means something is wrong -> resync from cursor
+      state.gaps++; dirty = true; connect(); return;
+    }
+    const p = JSON.parse(e.data);
+    let m = state.byKey.get(p.key);
+    if (!m) { m = new Map(); state.byKey.set(p.key, m); }
+    m.set(p.step, { value: p.value, seq });
+    state.lastSeq = seq;
+    dirtyKeys.add(p.key);
+    dirty = true;
+  });
+  es.addEventListener('revoked', () => { es.close(); setConn('error'); $('#conn').textContent = 'key revoked'; });
+  es.onerror = () => {
+    if (es.readyState === EventSource.CLOSED) {
+      // 401/404 or a manual close: EventSource will not retry by itself
+      setConn('error'); setTimeout(connect, 2000);
+    } else setConn('reconnecting');
+  };
+}
+
+// A silently dead TCP connection (Wi-Fi drop, NAT timeout) keeps readyState OPEN forever.
+// The server sends a ping every 5 s; 12 s of silence means the connection is dead.
+const WATCHDOG_MS = 12000;
+setInterval(() => {
+  if (es && es.readyState === EventSource.OPEN && Date.now() - state.lastActivity > WATCHDOG_MS) {
+    state.watchdog++; setConn('reconnecting'); connect();
+  }
+}, 1000);
+
+const fmt = (v) => Number.isInteger(v) ? String(v) : v.toPrecision(6);
+
+const MAX_CHART_POINTS = 2000;
+
+function ensureBox(root, key) {
+  let box = root.querySelector(`[data-key="${CSS.escape(key)}"]`);
+  if (box) return box;
+  box = document.createElement('section'); box.className = 'metric'; box.dataset.key = key;
+  box.innerHTML = '<h2></h2><div class="summary"></div><svg viewBox="0 0 100 100" preserveAspectRatio="none"><polyline/></svg>' +
+    '<details><summary>all points</summary><div class="wrap"><table><thead><tr><th>step</th><th>value</th><th>seq</th></tr></thead><tbody></tbody></table></div></details>';
+  box.querySelector('h2').textContent = key;
+  // the full table is only built while it is open; opening it schedules a render
+  box.querySelector('details').addEventListener('toggle', () => { dirtyKeys.add(key); dirty = true; });
+  const after = [...root.children].find((el) => el.dataset.key > key);
+  root.insertBefore(box, after || null);
+  return box;
+}
+
+function renderKey(root, key) {
+  const m = state.byKey.get(key);
+  const box = ensureBox(root, key);
+  const steps = [...m.keys()].sort((a, b) => a - b);
+  let lo = Infinity, hi = -Infinity;            // no Math.min(...arr): it throws past ~125k args
+  for (const s of steps) { const v = m.get(s).value; if (v < lo) lo = v; if (v > hi) hi = v; }
+  const s0 = steps[0], s1 = steps[steps.length - 1];
+  const sum = box.querySelector('.summary');
+  sum.replaceChildren(...[['points', steps.length], ['last step', s1], ['last', fmt(m.get(s1).value)], ['min', fmt(lo)], ['max', fmt(hi)]]
+    .map(([k, v]) => { const sp = document.createElement('span'); sp.dataset.field = k; sp.textContent = `${k}: ${v}`; return sp; }));
+  // chart: bucketed min/max downsampling keeps spikes visible at any run length
+  const sx = (s) => s1 === s0 ? 50 : ((s - s0) / (s1 - s0)) * 100;
+  const sy = (v) => hi === lo ? 50 : 100 - ((v - lo) / (hi - lo)) * 100;
+  const pts = [];
+  const per = Math.max(1, Math.ceil(steps.length / (MAX_CHART_POINTS / 2)));
+  for (let i = 0; i < steps.length; i += per) {
+    let mn = i, mx = i;
+    for (let j = i; j < Math.min(i + per, steps.length); j++) {
+      if (m.get(steps[j]).value < m.get(steps[mn]).value) mn = j;
+      if (m.get(steps[j]).value > m.get(steps[mx]).value) mx = j;
+    }
+    for (const j of mn <= mx ? [mn, mx] : [mx, mn]) pts.push(`${sx(steps[j]).toFixed(2)},${sy(m.get(steps[j]).value).toFixed(2)}`);
+  }
+  box.querySelector('polyline').setAttribute('points', pts.join(' '));
+  const tb = box.querySelector('tbody');
+  if (!box.querySelector('details').open) { if (tb.firstChild) tb.replaceChildren(); return; }
+  tb.replaceChildren(...steps.map((s) => {
+    const { value, seq } = m.get(s);
+    const tr = document.createElement('tr');
+    tr.className = 'pt'; tr.dataset.step = s; tr.dataset.value = String(value); tr.dataset.seq = seq;
+    tr.innerHTML = `<td>${s}</td><td>${fmt(value)}</td><td>${seq}</td>`;
+    return tr;
+  }));
+}
+
+function render() {
+  if (!dirty) return; dirty = false;
+  let total = 0;
+  for (const m of state.byKey.values()) total += m.size;
+  $('#last-seq').textContent = state.lastSeq;
+  $('#n-points').textContent = total;
+  $('#reconnects').textContent = state.reconnects;
+  $('#gaps').textContent = state.gaps;
+  $('#dupes').textContent = state.dupes;
+  $('#watchdog').textContent = state.watchdog;
+  const root = $('#metrics');
+  for (const key of dirtyKeys) renderKey(root, key);
+  dirtyKeys.clear();
+}
+setInterval(render, 200);
+
+fetch(`/runs/${runId}`).then(async (r) => {
+  if (r.status === 401) { location.href = '/'; return; }
+  if (!r.ok) { $('#title').textContent = 'Run not found'; setConn('error'); return; }
+  const run = await r.json();
+  $('#title').textContent = run.name; document.title = run.name + ' · Soup'; $('#run-id').textContent = run.id;
+  connect();
+});
+</script>
+</body>
+</html>

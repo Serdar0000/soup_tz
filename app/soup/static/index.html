@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soup runs</title>
+<style>
+  :root { --bg:#fafaf9; --fg:#1c1917; --muted:#78716c; --line:#e7e5e4; --accent:#0f766e; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#1c1917; --fg:#f5f5f4; --muted:#a8a29e; --line:#44403c; --accent:#5eead4; } }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui, sans-serif; }
+  main { max-width:900px; margin:0 auto; padding:24px 16px; }
+  h1 { font-size:20px; margin:0 0 16px; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:500; font-size:13px; }
+  a { color:var(--accent); }
+  input { padding:8px; width:min(420px, 100%); font:inherit; border:1px solid var(--line); background:transparent; color:inherit; }
+  button { padding:8px 14px; font:inherit; cursor:pointer; }
+  .muted { color:var(--muted); }
+  .err { color:#dc2626; }
+  header { display:flex; justify-content:space-between; align-items:center; }
+</style>
+</head>
+<body>
+<main>
+  <header><h1>Runs</h1><button id="logout" hidden>Log out</button></header>
+  <form id="login" hidden>
+    <p>Enter a project API key. It is stored in an HttpOnly cookie, never in the URL.</p>
+    <input id="key" name="api_key" placeholder="soup_..." autocomplete="off">
+    <button type="submit">Open project</button>
+    <p id="login-err" class="err"></p>
+  </form>
+  <table id="runs" hidden>
+    <thead><tr><th>Name</th><th>Points</th><th>Created</th><th>ID</th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <p id="empty" class="muted" hidden>No runs in this project yet.</p>
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+let timer;
+
+async function load() {
+  const r = await fetch('/runs', { credentials: 'same-origin' });
+  if (r.status === 401) { $('#login').hidden = false; $('#runs').hidden = true; $('#logout').hidden = true; return; }
+  const { runs } = await r.json();
+  $('#login').hidden = true; $('#logout').hidden = false;
+  $('#runs').hidden = runs.length === 0; $('#empty').hidden = runs.length !== 0;
+  const tb = $('#runs tbody');
+  tb.replaceChildren(...runs.map((run) => {
+    const tr = document.createElement('tr');
+    tr.dataset.runId = run.id;
+    const a = document.createElement('a'); a.href = '/r/' + run.id; a.textContent = run.name;
+    const cells = [a, String(run.points), new Date(run.created_at).toLocaleString(), run.id.slice(0, 8)];
+    for (const c of cells) { const td = document.createElement('td'); td.append(c); tr.append(td); }
+    return tr;
+  }));
+  clearTimeout(timer); timer = setTimeout(load, 3000);
+}
+
+$('#login').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const r = await fetch('/session', { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ api_key: $('#key').value.trim() }) });
+  $('#login-err').textContent = r.ok ? '' : 'Invalid key';
+  if (r.ok) { $('#key').value = ''; load(); }
+});
+$('#logout').addEventListener('click', async () => { await fetch('/session', { method: 'DELETE' }); clearTimeout(timer); load(); });
+load();
+</script>
+</body>
+</html>

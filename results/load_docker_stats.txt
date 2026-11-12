@@ -1,0 +1,6 @@
+batch1: soup_tz-app-1 cpu=63.29% mem=42.99MiB / 7.75GiB soup_tz-db-1 cpu=36.00% mem=156.1MiB / 7.75GiB 
+x4: soup_tz-app-1 cpu=20.70% mem=58.39MiB / 7.75GiB soup_tz-db-1 cpu=13.94% mem=173.7MiB / 7.75GiB 
+batch1_split: soup_tz-tests-run-da6378c144fb cpu=40.14% mem=33.2MiB / 7.75GiB soup_tz-tests-run-5addb5a506f8 cpu=41.25% mem=33.42MiB / 7.75GiB soup_tz-app-1 cpu=44.78% mem=57.47MiB / 7.75GiB soup_tz-db-1 cpu=24.05% mem=188MiB / 7.75GiB 
+replicas batch1: soup_tz-lb-1 cpu=14.33% mem=20.16MiB / 7.75GiB soup_tz-app-1 cpu=40.67% mem=40.94MiB / 7.75GiB soup_tz-app-2 cpu=40.21% mem=40.82MiB / 7.75GiB soup_tz-db-1 cpu=54.91% mem=263.9MiB / 7.75GiB 
+replicas+keepalive t=15: soup_tz-lb-1 cpu=10.98% soup_tz-app-1 cpu=39.80% soup_tz-app-2 cpu=35.35% soup_tz-db-1 cpu=63.45% 
+replicas+keepalive t=30: soup_tz-lb-1 cpu=9.44% soup_tz-app-1 cpu=31.40% soup_tz-app-2 cpu=30.27% soup_tz-db-1 cpu=52.53% 

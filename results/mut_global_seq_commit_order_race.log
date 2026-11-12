@@ -1,0 +1,73 @@
+ Container soup_tz-app-1 Running 
+ Container soup_tz-db-1 Running 
+ Container soup_tz-db-1 Waiting 
+ Container soup_tz-db-1 Healthy 
+ Container soup_tz-app-1 Waiting 
+ Container soup_tz-app-1 Healthy 
+ Container soup_tz-tests-run-a65c2edd3c7e Creating 
+ Container soup_tz-tests-run-a65c2edd3c7e Created 
+F
+=================================== FAILURES ===================================
+______ test_no_event_lost_with_concurrent_writers_and_reconnecting_reader ______
+
+make_project = <function make_project.<locals>._make at 0xffff7df26200>
+db = <psycopg.Connection [IDLE] (host=db database=soup) at 0xffff7e06a8a0>
+
+    def test_no_event_lost_with_concurrent_writers_and_reconnecting_reader(make_project, db):
+        """The commit-order race: concurrent writers + a reader that keeps dropping and
+        resuming from Last-Event-ID. Every committed point must reach the reader exactly once."""
+        a = make_project()
+        run = a.new_run()
+        stop = threading.Event()
+        reader = SSEReader(f"{BASE}/runs/{run}/stream", a.h())
+        reconnects = 0
+    
+        def read_loop():
+            nonlocal reconnects
+            while not stop.is_set() or reader.last_id < final_seq[0]:
+                reader.read_once(max_events=random.randint(5, 60), timeout=5)
+                reconnects += 1
+    
+        final_seq = [10**9]
+        t = threading.Thread(target=read_loop)
+        t.start()
+    
+        def writer(w):
+            rnd = random.Random(w)
+            steps = list(range(w * 1000, w * 1000 + 300))
+            rnd.shuffle(steps)
+            i = 0
+            while i < len(steps):
+                n = rnd.randint(1, 25)
+                chunk = steps[i:i + n]
+                assert a.post(run, pts(f"m{w % 3}", chunk)).status_code == 200
+                if rnd.random() < 0.3:  # retry storm: resend the same chunk
+                    assert a.post(run, pts(f"m{w % 3}", chunk)).status_code == 200
+                i += n
+    
+        with ThreadPoolExecutor(8) as ex:
+            list(ex.map(writer, range(8)))
+        final_seq[0] = db.execute("SELECT last_seq FROM runs WHERE id=%s", (run,)).fetchone()[0]
+        stop.set()
+        t.join(timeout=60)
+        rows = db_points(db, run)
+        seen = [e["seq"] for e in reader.events]
+        print(f"\nRACE: db rows={len(rows)} reader events={len(seen)} reconnects={reconnects}")
+        assert len(rows) == 8 * 300
+>       assert seen == list(range(1, len(rows) + 1)), "gap or duplicate in delivered seqs"
+E       AssertionError: gap or duplicate in delivered seqs
+E       assert [31, 33, 34, 36, 37, 39, ...] == [1, 2, 3, 4, 5, 6, ...]
+E         
+E         At index 0 diff: 31 != 1
+E         Right contains 71 more items, first extra item: 2330
+E         Use -v to get more diff
+
+test_silent_failures.py:112: AssertionError
+----------------------------- Captured stdout call -----------------------------
+
+RACE: db rows=2400 reader events=2329 reconnects=70
+=========================== short test summary info ============================
+FAILED test_silent_failures.py::test_no_event_lost_with_concurrent_writers_and_reconnecting_reader
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed in 6.23s
+

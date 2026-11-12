@@ -1,0 +1,123 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-8.3.4, pluggy-1.7.0 -- /usr/bin/python
+cachedir: .pytest_cache
+rootdir: /tests
+plugins: anyio-4.16.0
+collecting ... collected 22 items
+
+test_e2e_consistency.py::test_page_matches_database 11:46:03 browser console: Failed to load resource: the server responded with a status of 401 (Unauthorized)
+11:46:03 seed=1794483963 points=900 batches_in_plan=231 late_batches=19 conflicts=5
+11:46:12 disruption 1: server dropped streams at 69/231; page reconnected
+11:46:16 browser console: Failed to load resource: net::ERR_CONNECTION_RESET
+11:46:19 browser console: Failed to load resource: net::ERR_CONNECTION_RESET
+11:46:19 browser console: Failed to load resource: net::ERR_CONNECTION_RESET
+11:46:19 browser console: Failed to load resource: net::ERR_SOCKET_NOT_CONNECTED
+11:46:20 disruption 2: network cut 3s at 136/231: {'page_seq_at_cut': 431, 'page_seq_at_restore': 431, 'db_seq_at_cut': 447, 'db_seq_at_restore': 546, 'conn_state_during': 'reconnecting', 'catchup_s': 0.01}
+11:46:20 disruption 3: page reloaded at 140/231
+11:46:37 disruption 4: blackhole at 185/231: {'page_seq_at_cut': 708, 'detected_after_s': 11.6, 'db_seq_at_detect': 817}
+11:46:37 main plan sent; sending late batches
+11:46:39 page caught up to seq 900 in 0.51s after last write
+{
+  "seed": 1794483963,
+  "run_id": "40018f1b-55aa-4f0f-b08e-7e348f31bb4a",
+  "client": {
+    "requests": 256,
+    "client_timeouts": 6,
+    "accepted": 873,
+    "duplicates": 273,
+    "conflicts": 5
+  },
+  "events": {
+    "server_drop_reconnected": true,
+    "progress_at_disruptions": [
+      69,
+      104,
+      139,
+      185
+    ],
+    "network_cut": {
+      "page_seq_at_cut": 431,
+      "page_seq_at_restore": 431,
+      "db_seq_at_cut": 447,
+      "db_seq_at_restore": 546,
+      "conn_state_during": "reconnecting",
+      "catchup_s": 0.01
+    },
+    "blackhole": {
+      "page_seq_at_cut": 708,
+      "detected_after_s": 11.6,
+      "db_seq_at_detect": 817
+    }
+  },
+  "db_rows": 900,
+  "page_rows": 900,
+  "api_rows": 900,
+  "expected_rows": 900,
+  "db_last_seq": 900,
+  "page_last_seq": 900,
+  "page_gaps": 0,
+  "page_dupes_ignored": 0,
+  "page_reconnects_after_reload": 1,
+  "only_in_db": [],
+  "only_on_page": [],
+  "visible_text_mismatches": [],
+  "conflicts_page_shows_first_value": true
+}
+PASSED
+test_isolation.py::test_run_list_shows_only_own_runs PASSED
+test_isolation.py::test_cannot_read_foreign_run_and_404_is_indistinguishable PASSED
+test_isolation.py::test_cannot_write_foreign_run PASSED
+test_isolation.py::test_cannot_subscribe_to_foreign_stream_header_or_cookie PASSED
+test_isolation.py::test_cache_does_not_leak_between_projects PASSED
+test_isolation.py::test_live_stream_never_carries_other_projects_events PASSED
+test_isolation.py::test_auth_required_and_bad_keys_rejected PASSED
+test_isolation.py::test_ids_are_random_uuid4 PASSED
+test_isolation.py::test_timing_foreign_vs_missing 
+TIMING median foreign=0.730ms missing=0.730ms diff=+0.001ms (n=300 each)
+PASSED
+test_isolation.py::test_server_errors_do_not_leak_internals PASSED
+test_isolation.py::test_validation_errors_do_not_echo_values PASSED
+test_silent_failures.py::test_same_batch_sent_concurrently_is_stored_once PASSED
+test_silent_failures.py::test_conflicting_resend_keeps_first_value_and_reports_it PASSED
+test_silent_failures.py::test_invalid_point_rejects_whole_batch PASSED
+test_silent_failures.py::test_failure_mid_write_rolls_back_everything_and_leaves_no_seq_gap PASSED
+test_silent_failures.py::test_oversized_batch_rejected_without_writing PASSED
+test_silent_failures.py::test_no_event_lost_with_concurrent_writers_and_reconnecting_reader 
+RACE: db rows=2400 reader events=2400 reconnects=72
+PASSED
+test_silent_failures.py::test_stream_survives_listener_connection_loss 
+LISTENER KILLED: delivered after 0.44s
+PASSED
+test_silent_failures.py::test_slow_client_gets_everything_and_does_not_slow_writers 
+SLOW CLIENT: got 10000/10000; other-run write p50=1.1ms p99=5.2ms
+PASSED
+test_silent_failures.py::test_rotated_key_stops_working_everywhere 
+ROTATION: open stream closed 1.51s after rotation, control=['revoked']
+PASSED
+test_silent_failures.py::test_rotation_with_grace_period_expires PASSED
+
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED test_e2e_consistency.py::test_page_matches_database
+PASSED test_isolation.py::test_run_list_shows_only_own_runs
+PASSED test_isolation.py::test_cannot_read_foreign_run_and_404_is_indistinguishable
+PASSED test_isolation.py::test_cannot_write_foreign_run
+PASSED test_isolation.py::test_cannot_subscribe_to_foreign_stream_header_or_cookie
+PASSED test_isolation.py::test_cache_does_not_leak_between_projects
+PASSED test_isolation.py::test_live_stream_never_carries_other_projects_events
+PASSED test_isolation.py::test_auth_required_and_bad_keys_rejected
+PASSED test_isolation.py::test_ids_are_random_uuid4
+PASSED test_isolation.py::test_timing_foreign_vs_missing
+PASSED test_isolation.py::test_server_errors_do_not_leak_internals
+PASSED test_isolation.py::test_validation_errors_do_not_echo_values
+PASSED test_silent_failures.py::test_same_batch_sent_concurrently_is_stored_once
+PASSED test_silent_failures.py::test_conflicting_resend_keeps_first_value_and_reports_it
+PASSED test_silent_failures.py::test_invalid_point_rejects_whole_batch
+PASSED test_silent_failures.py::test_failure_mid_write_rolls_back_everything_and_leaves_no_seq_gap
+PASSED test_silent_failures.py::test_oversized_batch_rejected_without_writing
+PASSED test_silent_failures.py::test_no_event_lost_with_concurrent_writers_and_reconnecting_reader
+PASSED test_silent_failures.py::test_stream_survives_listener_connection_loss
+PASSED test_silent_failures.py::test_slow_client_gets_everything_and_does_not_slow_writers
+PASSED test_silent_failures.py::test_rotated_key_stops_working_everywhere
+PASSED test_silent_failures.py::test_rotation_with_grace_period_expires
+======================== 22 passed in 63.28s (0:01:03) =========================

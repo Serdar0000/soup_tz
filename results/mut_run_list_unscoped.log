@@ -1,0 +1,38 @@
+ Container soup_tz-app-1 Running 
+ Container soup_tz-db-1 Running 
+ Container soup_tz-db-1 Waiting 
+ Container soup_tz-db-1 Healthy 
+ Container soup_tz-app-1 Waiting 
+ Container soup_tz-app-1 Healthy 
+ Container soup_tz-tests-run-57892ae7f495 Creating 
+ Container soup_tz-tests-run-57892ae7f495 Created 
+F
+=================================== FAILURES ===================================
+______________________ test_run_list_shows_only_own_runs _______________________
+
+make_project = <function make_project.<locals>._make at 0xffffb8178f40>
+
+    def test_run_list_shows_only_own_runs(make_project):
+        a, b = make_project("A"), make_project("B")
+        ra = {a.new_run(f"a{i}") for i in range(3)}
+        rb = {b.new_run(f"b{i}") for i in range(2)}
+        got_a = {r["id"] for r in a.http.get(f"{BASE}/runs", headers=a.h()).json()["runs"]}
+        got_b = {r["id"] for r in b.http.get(f"{BASE}/runs", headers=b.h()).json()["runs"]}
+>       assert got_a == ra and got_b == rb
+E       AssertionError: assert ({'023350bc-65...652d590', ...} == {'3a37a7c4-a6...8b9949d1397b'}
+E         
+E         Extra items in the left set:
+E         'b26b92e6-741d-4835-a88a-4ab97f7348aa'
+E         '81962538-41c6-4542-a9e1-d8dba79476f7'
+E         '425906c6-1057-4566-9946-cd94cdc4a5a2'
+E         'e3f78834-4562-4efb-9350-fd1976e10ac7'
+E         '7d69818d-1a14-4e51-83b5-ef4d085fc0a4'...
+E         
+E         ...Full output truncated (75 lines hidden), use '-vv' to show)
+
+test_isolation.py:24: AssertionError
+=========================== short test summary info ============================
+FAILED test_isolation.py::test_run_list_shows_only_own_runs - AssertionError:...
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed in 0.06s
+
